@@ -100,7 +100,7 @@ def normalize_config(cfg):
 
     elif engine_type == "recbole":
         # recbole이 자체적으로 학습/최적화 파라미터를 관리한다는 전제
-        for k in ["optimizer", "lr_scheduler", "metrics", "loss", "dataloader", "train"]:
+        for k in ["optimizer", "lr_scheduler", "metrics", "loss", "dataloader"]:
             cfg.pop(k, None)
 
     return cfg

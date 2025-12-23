@@ -16,7 +16,7 @@ class MoviesSeqTopNProblem(ProblemBase):
         pipeline_name = self.cfg.data.get("pipeline") or self.cfg.problem.get("pipeline")
         if not pipeline_name:
             raise ValueError("cfg.data.pipeline is required for movies_seq_topn")
-        pipeline = PipelineFactory.build(pipeline_name)
+        pipeline = PipelineFactory.build(self.cfg)
         return pipeline.build(self.cfg)
 
     def save_submission(
@@ -42,8 +42,9 @@ class MoviesSeqTopNProblem(ProblemBase):
                 result.append((u, it))
 
         sub_df = pd.DataFrame(result, columns=["user", "item"])
+        train_cfg = cfg.get("train", {})  # train 없으면 {}
+        submit_dir = train_cfg.get("submit_dir", "saved/submit")
 
-        submit_dir = cfg.train.get("submit_dir", "saved/submit")
         out_path = setting.get_submit_path(
             base_dir=submit_dir,
             model=cfg.model,
