@@ -161,13 +161,14 @@ def main(cfg):
     engine = EngineFactory.build(cfg, logger, setting)
 
     # 4) train
+    # main.py
+    tr = None
     if not cfg.predict:
-        engine.fit(data_bundle)
+        tr = engine.fit(data_bundle)
 
-    # 5) predict (항상)
     preds = engine.predict(
         data_bundle,
-        checkpoint=cfg.checkpoint if cfg.predict else None
+        checkpoint=cfg.checkpoint if cfg.predict else tr["checkpoint_path"]
     )
 
     # 6) save submission (Problem이 정책 결정, 경로 return)
