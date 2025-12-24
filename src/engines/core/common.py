@@ -1,5 +1,17 @@
 from __future__ import annotations
 
+"""
+Engine 공통 유틸/Contract 검사.
+
+입력:
+- cfg / setting / checkpoint_arg 등
+- preds / DataBundle
+
+출력:
+- CheckpointPolicy: checkpoint 경로 결정
+- PredsValidator: task별 preds 형식 검증(예: seq_topn은 List[List[int]])
+"""
+
 from typing import Any, Dict, List, Optional, Union
 import os
 import numpy as np

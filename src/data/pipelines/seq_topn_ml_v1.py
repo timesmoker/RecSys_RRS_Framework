@@ -1,5 +1,28 @@
-# src/data/pipelines/seq_topn_ml_v1.py
 from __future__ import annotations
+
+"""
+MovieLens Seq Top-K 파이프라인 (v1).
+
+입력:
+- raw["ratings"]: pd.DataFrame (columns: user,item,time)
+- (선택) raw["sample_submission"]: pd.DataFrame (columns: user,item)
+- (선택) raw["item2attributes"]: dict[str, list[int]]
+
+출력:
+- DataBundle
+  - train: ratings 그대로
+  - test: 빈 DF(컬럼만 유지)  (Engine/Problem contract 맞추기용)
+  - meta:
+    - submission.users: 제출 대상 user 리스트(순서 포함)
+      * sample_submission이 있으면 그 user 순서를 SSoT로 사용
+    - submission.k: sample_submission에서 추정한 user당 추천 개수(K) (없으면 None)
+    - user_seq: dict[user, list[item]] (time 정렬)
+    - long_sequence: list[int] (pretrain negative segment sampling용)
+    - item2attributes / attribute_size: (선택) S3Rec pretrain용
+
+주요 cfg:
+- cfg.dataset.{data_path,user_col,item_col,time_col,load_aux_tables,sample_submission_path}
+"""
 
 from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
@@ -17,19 +40,14 @@ class SeqTopNMLV1Pipeline(DataPipelineBase):
         super().__init__(cfg)
 
     def load_raw(self, cfg: Any) -> Dict[str, Any]:
-        # loader contract: {"ratings": df, "item2attributes": ..., ...}
+        """입력(cfg)으로부터 raw dict를 생성합니다."""
         return load_ml_train_dir(cfg)
 
 
     def prepare_data(
         self, cfg: Any, raw: Dict[str, Any]
     ) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], pd.DataFrame, Dict[str, Any]]:
-        """
-        seq_topn 준비 단계:
-          - user별 시퀀스 구성 (time 정렬)
-          - submission users order 생성
-          - (선택) train/valid split은 향후 holdout 정책으로 확장
-        """
+        """raw -> (train_df, valid_df, test_df, meta) 로 변환합니다."""
         ratings: pd.DataFrame = raw["ratings"].copy()
 
         user_col = str(cfg.dataset.get("user_col", "user"))
@@ -47,7 +65,8 @@ class SeqTopNMLV1Pipeline(DataPipelineBase):
         for u in train_users:
             long_sequence.extend(user_seq.get(u, []) or [])
 
-        # submission users order: prefer sample_submission template if available
+        # submission users order:
+        # - 대회 템플릿 방식이면 sample_submission의 user 순서를 SSoT로 사용
         users: List[int] = train_users
         k_from_sample = None
         ss = raw.get("sample_submission", None)

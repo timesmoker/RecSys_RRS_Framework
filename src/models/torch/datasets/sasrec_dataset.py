@@ -1,5 +1,21 @@
 from __future__ import annotations
 
+"""
+SASRec-style dataset (seq_topn).
+
+입력:
+- user_seqs: Sequence[Sequence[int]] (user별 item sequence)
+- max_len: int (sequence padding/truncation 길이)
+- item_size: int (아이템 vocab size; 0은 padding)
+- data_type: train|valid|test|submission
+
+출력(1 sample):
+- (user_id, input_ids, target_pos, target_neg, answer)
+  - user_id: torch.long (== dataset index)
+  - input_ids/target_pos/target_neg: torch.long [max_len]
+  - answer: torch.long [1] (없으면 0으로 패딩)
+"""
+
 import random
 from typing import List, Optional, Sequence, Set, Tuple
 

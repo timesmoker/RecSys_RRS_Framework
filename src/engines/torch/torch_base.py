@@ -1,6 +1,25 @@
-# src/engines/torch/torch_base.py
 from __future__ import annotations
 from typing import Any, List
+
+"""
+Torch 실행 엔진 (공통 루프).
+
+입력:
+- cfg.train.*: epochs/batch_size/lr/amp/grad_clip 등
+- cfg.predict: bool (predict-only 여부)
+- cfg.checkpoint: str (predict-only 시 사용)
+- bundle: DataBundle (schema/meta 포함)
+
+출력:
+- fit(bundle) -> {"checkpoint_path": str}
+- predict(bundle, checkpoint=...) -> preds
+  * seq_topn/topn: List[List[int]]
+  * regression: np.ndarray (1D) 등
+
+부작용:
+- run_dir 아래에 `last.pt` 체크포인트 저장
+- logger를 통해 metrics/predict/artifact 이벤트 기록
+"""
 
 import torch
 import numpy as np
@@ -53,8 +72,9 @@ class TorchBaseEngine(EngineBase):
 
     # ---------------- public API ----------------
     def fit(self, bundle):
-        if bool(getattr(self.cfg, "predict", False)):
-            return
+        # mode=predict 인 경우 fit은 호출되지 않는 것을 전제하지만, 방어적으로 막는다
+        if str(getattr(self.cfg, "mode", "")).lower() == "predict" or bool(getattr(self.cfg, "predict", False)):
+            return {"checkpoint_path": None}
 
         loaders = self.recipe.build_loaders(self.cfg, bundle)
         self._init_train_components(bundle)

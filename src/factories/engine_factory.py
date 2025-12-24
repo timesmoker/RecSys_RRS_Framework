@@ -2,6 +2,17 @@
 from __future__ import annotations
 from typing import Any
 
+"""
+EngineFactory: cfg.engine.type → Engine 인스턴스 생성.
+
+입력:
+- cfg.engine.type: str (registry key)
+- logger, setting
+
+출력:
+- EngineBase 구현체 인스턴스
+"""
+
 from src.engines.core.engine_base import EngineBase
 from src.engines.registry import ENGINE_REGISTRY
 

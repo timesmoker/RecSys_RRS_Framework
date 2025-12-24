@@ -1,4 +1,4 @@
-predict: false
+mode: train_predict
 checkpoint: ""
 
 seed: 42

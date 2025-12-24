@@ -1,3 +1,16 @@
+"""
+Entry point.
+
+입력:
+- --config: config YAML path
+- --mode: pretrain|train_predict|predict
+- --checkpoint: mode=predict일 때 필수
+
+출력/부작용:
+- run_dir 생성 + 로그 기록
+- (train_predict) submission csv 생성
+"""
+
 import argparse
 import ast
 from omegaconf import OmegaConf
@@ -17,7 +30,7 @@ def load_and_merge_config():
 
     # 최소 공통 옵션
     arg("--config", type=str, required=True)
-    arg("--predict", type=ast.literal_eval, default=None)
+    arg("--mode", type=str, default=None)  # pretrain|train_predict|predict
     arg("--checkpoint", type=str, default=None)
     arg("--seed", type=int, default=None)
     arg("--device", type=str, default=None)
@@ -44,6 +57,13 @@ def load_and_merge_config():
 # --------------------------------------------------
 def infer_runtime_config(cfg):
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
+
+    # mode (SSoT)
+    if "mode" not in cfg or not cfg.mode:
+        cfg.mode = "train_predict"
+    cfg.mode = str(cfg.mode).lower()
+    if cfg.mode not in ("pretrain", "train_predict", "predict"):
+        raise ValueError("cfg.mode must be one of: pretrain|train_predict|predict")
 
     # engine.type 필수
     if "engine" not in cfg or "type" not in cfg.engine:
@@ -89,9 +109,9 @@ def normalize_config(cfg):
     if "data_args" in cfg and pipeline in cfg.data_args:
         cfg.data_args = {pipeline: cfg.data_args[pipeline]}
 
-    # predict 모드면 학습 관련 제거 (로깅/경로는 유지)
-    if cfg.get("predict", False):
-        # NOTE: cfg.train is kept for predict (topk/paths/engine-specific needs)
+    # mode에 따라 정규화(키 삭제는 최소화)
+    if cfg.mode == "predict":
+        # 학습 관련 섹션은 남겨도 무방하지만, 의미 없는 것들은 제거
         for k in ["optimizer", "lr_scheduler", "metrics", "loss"]:
             cfg.pop(k, None)
 
@@ -175,21 +195,23 @@ def main(cfg):
     # 3) Engine
     engine = EngineFactory.build(cfg, logger, setting)
 
-    # 4) train
-    # main.py
-    tr = None
-    if not cfg.predict:
+    # 4) mode routing
+    if cfg.mode == "pretrain":
         tr = engine.fit(data_bundle)
-
-    # pretrain-only / train-only mode (no predict, no submission)
-    if bool(cfg.get("skip_submission", False)):
-        logger.log_predict_info({"run_mode": "skip_submission", "stage": "done"})
+        logger.log_predict_info({"mode": "pretrain", "checkpoint_path": tr.get("checkpoint_path") or ""})
         return
 
-    preds = engine.predict(
-        data_bundle,
-        checkpoint=cfg.checkpoint if cfg.predict else tr["checkpoint_path"]
-    )
+    if cfg.mode == "train_predict":
+        tr = engine.fit(data_bundle)
+        ckpt = tr.get("checkpoint_path")
+        if not ckpt:
+            raise ValueError("engine.fit() must return checkpoint_path for mode=train_predict")
+        preds = engine.predict(data_bundle, checkpoint=ckpt)
+
+    elif cfg.mode == "predict":
+        if not cfg.checkpoint:
+            raise ValueError("cfg.checkpoint is required for mode=predict")
+        preds = engine.predict(data_bundle, checkpoint=cfg.checkpoint)
 
     # 5) optional evaluation (for wandb logging / sanity check)
     try:
@@ -205,8 +227,8 @@ def main(cfg):
 
     # 7) predict run logging
     logger.log_predict_info({
-        "run_mode": "predict_only" if cfg.predict else "train_then_predict",
-        "checkpoint": cfg.checkpoint if cfg.predict else "",
+        "mode": cfg.mode,
+        "checkpoint": cfg.checkpoint if cfg.mode == "predict" else "",
         "output_path": output_path or "",
         "engine": cfg.engine.type,
         "model": cfg.model,

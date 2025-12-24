@@ -1,5 +1,26 @@
 from __future__ import annotations
 
+"""
+S3Rec self-supervised pretraining recipe.
+
+입력:
+- cfg.mode: "pretrain" (권장)
+- cfg.train.*: epochs/batch_size/lr 등 공통 학습 하이퍼
+- cfg.recipe_args.*: pretrain 전용 하이퍼(mask_p, aap/mip/map/sp weight)
+- bundle.meta:
+  - submission.users: user 순서(정렬)  (seq_topn pipeline이 제공)
+  - user_seq: user → item sequence
+  - long_sequence: segment negative sampling용
+  - item2attributes/attribute_size: AAP task용(선택)
+
+출력:
+- fit(): checkpoint(`last.pt`) 생성 (Engine이 저장)
+- predict_step(): pretrain 단계에서는 제출 preds를 만들지 않으므로 빈 list를 반환
+
+비고:
+- 일반적으로 `mode: pretrain`로 실행합니다(제출/예측 없음).
+"""
+
 from typing import Any
 
 import torch
@@ -36,13 +57,17 @@ def build(cfg: Any) -> TorchRecipeBase:
 
 
 class S3RecPretrainRecipe(TorchRecipeBase):
-    """
-    S3Rec self-supervised pretraining recipe.
+    """S3Rec pretrain 레시피 구현체(Contract는 모듈 docstring 참조)."""
 
-    Intended usage:
-      1) run with config setting `recipe: s3rec_pretrain` and `skip_submission: true`
-      2) finetune config uses `recipe: s3rec_finetune` + `train.pretrained_checkpoint: <path>`
-    """
+    @staticmethod
+    def _recipe_args(cfg: Any) -> Any:
+        """
+        recipe-specific hyperparams live under cfg.recipe_args (dict/DictConfig).
+        """
+        try:
+            return getattr(cfg, "recipe_args")
+        except Exception:
+            return {}
 
     def build_model(self, cfg, bundle):
         meta = bundle.meta or {}
@@ -103,7 +128,14 @@ class S3RecPretrainRecipe(TorchRecipeBase):
 
         bs = int(getattr(tc, "batch_size", 512))
         nw = int(getattr(tc, "num_workers", 0) or 0)
-        mask_p = float(getattr(tc, "mask_p", 0.2))
+        ra = self._recipe_args(cfg)
+        try:
+            mask_p = float(getattr(ra, "mask_p"))
+        except Exception:
+            try:
+                mask_p = float(ra.get("mask_p", 0.2))
+            except Exception:
+                mask_p = 0.2
 
         ds = S3RecPretrainDataset(
             user_seqs=seqs,
@@ -118,7 +150,7 @@ class S3RecPretrainRecipe(TorchRecipeBase):
 
         return {
             "train": DataLoader(ds, batch_size=bs, shuffle=True, num_workers=nw, drop_last=False),
-            # dummy to satisfy engine.predict if someone forgets skip_submission
+            # NOTE: mode=pretrain에서는 predict가 호출되지 않지만, 방어적으로 dummy loader 제공
             "test": DataLoader(ds, batch_size=bs, shuffle=False, num_workers=nw, drop_last=False),
         }
 
@@ -143,11 +175,20 @@ class S3RecPretrainRecipe(TorchRecipeBase):
             neg_segment,
         )
 
-        tc = self.train_cfg()
-        aap_w = float(getattr(tc, "aap_weight", 0.2))
-        mip_w = float(getattr(tc, "mip_weight", 1.0))
-        map_w = float(getattr(tc, "map_weight", 1.0))
-        sp_w = float(getattr(tc, "sp_weight", 0.5))
+        ra = self._recipe_args(cfg)
+        def _getf(key: str, default: float) -> float:
+            try:
+                return float(getattr(ra, key))
+            except Exception:
+                try:
+                    return float(ra.get(key, default))
+                except Exception:
+                    return default
+
+        aap_w = _getf("aap_weight", 0.2)
+        mip_w = _getf("mip_weight", 1.0)
+        map_w = _getf("map_weight", 1.0)
+        sp_w = _getf("sp_weight", 0.5)
 
         joint_loss = aap_w * aap_loss + mip_w * mip_loss + map_w * map_loss + sp_w * sp_loss
         return {"loss": joint_loss}

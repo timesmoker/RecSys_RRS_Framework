@@ -1,5 +1,22 @@
 from __future__ import annotations
 
+"""
+RecBole 엔진 래퍼.
+
+입력:
+- cfg.recbole.*: dataset/work_dir/overrides 등
+- cfg.train.*: epochs/train_batch_size/eval_batch_size/learning_rate/topk 등
+- bundle: DataBundle (schema/meta 포함, 특히 submission.users, user_seq)
+
+출력:
+- fit(): dict (best_valid_score, best_valid_result, test_result, checkpoint_path)
+- predict(): List[List[int]] (seq_topn 제출용)
+
+부작용:
+- recbole용 atomic dataset export
+- overrides json 저장(재현성)
+"""
+
 import json
 import os
 from pathlib import Path

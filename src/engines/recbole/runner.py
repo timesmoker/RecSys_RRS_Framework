@@ -1,5 +1,19 @@
 from __future__ import annotations
 
+"""
+RecBole 실행 어댑터(캡슐화 레이어).
+
+입력:
+- model_name: str
+- dataset_name: str
+- overrides: dict (RecBole Config에 주입할 값들)
+
+출력:
+- build(): RecBole 내부 객체(config/dataset/dataloader/model/trainer) dict
+- fit(): 학습 결과 요약 dict + checkpoint_path
+- fullsort_topk(): 외부 user token -> 외부 item token topK
+"""
+
 from typing import Any, Dict, List, Optional, Tuple
 
 

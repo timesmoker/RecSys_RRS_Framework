@@ -1,5 +1,17 @@
 from __future__ import annotations
 
+"""
+Sklearn 엔진 베이스.
+
+입력:
+- cfg.train.run_dir: str (run 디렉토리 루트)
+- checkpoint: Optional[str]
+
+출력:
+- (공통) checkpoint save/load (joblib)
+- (공통) logger 이벤트 기록
+"""
+
 from abc import ABC
 from typing import Any, Optional, Dict
 import os

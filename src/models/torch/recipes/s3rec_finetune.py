@@ -1,5 +1,24 @@
 from __future__ import annotations
 
+"""
+S3Rec/SASRec finetuning recipe (MovieLens seq_topn).
+
+입력:
+- cfg.train.*: epochs/batch_size/lr/topk 등
+- (선택) cfg.train.pretrained_checkpoint: pretrain run의 last.pt 경로
+- bundle.meta:
+  - submission.users: 제출 대상 user 순서
+  - user_seq: user → item sequence (time 정렬)
+
+출력:
+- train_step(): {"loss": torch.Tensor}
+- predict_step(): List[List[int]] (batch 단위 topK item ids)
+  * 전체 predict 결과는 submission.users 순서와 정렬되어야 함
+
+주의:
+- seen-item masking은 `bundle.meta["user_seq"]`의 “전체 히스토리” 기준으로 수행합니다.
+"""
+
 from typing import Any, Dict
 
 import torch
@@ -42,11 +61,7 @@ def build(cfg: Any) -> TorchRecipeBase:
 
 
 class S3RecFinetuneRecipe(TorchRecipeBase):
-    """
-    Finetune-only S3Rec/SASRec style recipe for MovieLens seq_topn.
-    - Uses `bundle.meta['user_seq']` built by `seq_topn_ml_v1` pipeline.
-    - Predict returns List[List[int]] aligned with `bundle.meta['submission']['users']`.
-    """
+    """S3Rec finetune 레시피 구현체(Contract는 모듈 docstring 참조)."""
 
     def build_model(self, cfg, bundle):
         mcfg = self.model_cfg()

@@ -1,5 +1,28 @@
 from __future__ import annotations
 
+"""
+S3Rec pretraining dataset.
+
+입력:
+- user_seqs: user별 item sequence
+- long_sequence: 전체 아이템 나열(세그먼트 negative sampling용)
+- max_len: 패딩/절단 길이
+- item_size: vocab size
+- mask_id: 마스크 토큰 id
+- attribute_size: attribute vocab size(멀티핫)
+- item2attribute: item_id(str) -> list[attribute_id]
+- mask_p: masked item 비율
+
+출력(1 sample, 7 tensors):
+- attributes: float/int [max_len, attribute_size] (multi-hot)
+- masked_item_sequence: long [max_len]
+- pos_items: long [max_len]
+- neg_items: long [max_len]
+- masked_segment_sequence: long [max_len]
+- pos_segment: long [max_len]
+- neg_segment: long [max_len]
+"""
+
 import random
 from typing import Dict, List, Sequence, Set
 

@@ -1,4 +1,15 @@
-# src/utils/setting.py
+"""
+실행(run) 단위의 경로/재현성 유틸.
+
+입력:
+- seed_everything(seed): int
+- get_run_dir(base_dir, model, engine_type, run_name)
+
+출력:
+- Setting.run_dir: 현재 run의 저장 디렉토리
+- get_submit_path(...): 제출 파일 저장 경로(str)
+"""
+
 import os
 import time
 import random

@@ -1,6 +1,23 @@
 from __future__ import annotations
 
-# src/utils/logger.py
+"""
+Run 단위 로거.
+
+입력:
+- cfg.wandb: bool
+- cfg.verbose: bool
+- log_dir(run_dir): str
+
+출력:
+- config.yaml / config_resolved.yaml
+- events.jsonl (표준 이벤트 스트림)
+- predict_info.txt (사람용)
+- artifacts.txt
+
+비고:
+- wandb가 활성화되어 있고 import 가능하면 동일 payload를 wandb에도 기록합니다.
+"""
+
 import json
 import os
 from datetime import datetime, timezone

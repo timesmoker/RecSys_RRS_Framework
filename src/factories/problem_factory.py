@@ -1,6 +1,16 @@
 # src/factories/problem_factory.py
 from __future__ import annotations
 
+"""
+ProblemFactory: cfg.problem.name → Problem 인스턴스 생성.
+
+입력:
+- cfg.problem.name: str (registry key)
+
+출력:
+- ProblemBase 구현체 인스턴스
+"""
+
 from typing import Any
 
 from src.problems.base import ProblemBase

@@ -1,5 +1,21 @@
 from __future__ import annotations
 
+"""
+Problem 계층: "대회/업무 문제 정의"의 최상위 Contract.
+
+입력:
+- cfg: OmegaConf(DictConfig)
+- DataPipeline이 만든 DataBundle
+
+출력(Contract):
+- run() -> DataBundle
+- save_submission(preds, ...) -> Optional[str] (저장 경로)
+- (선택) evaluate_preds(preds, ...) -> dict|None (wandb/logging용 지표)
+
+핵심:
+- Problem은 "어떤 DataPipeline을 쓸지"와 "제출 포맷 정책"을 소유합니다.
+"""
+
 from typing import Any, Optional, List
 
 import pandas as pd

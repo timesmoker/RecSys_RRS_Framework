@@ -3,11 +3,16 @@
 이 레포는 **설정 파일(YAML) 기반으로** `Problem → DataPipeline → Engine`을 조립해 학습/예측/제출 파일 생성을 수행합니다.  
 현재 기본 타겟은 **MovieLens 기반 Seq Top-K 제출** 플로우입니다.
 
+추가 문서:
+- `docs/ARCHITECTURE.md`: Problem→Pipeline→Engine 구조/Contract
+- `docs/CONFIG_REFERENCE.md`: config 규칙/키 레퍼런스
+- `docs/RUNBOOK.md`: 실행 런북(커맨드/산출물)
+
 ---
 
 ### 폴더 구조
 
-- **`main.py`**: 실행 진입점(CLI). config 로드/정규화/레거시 마이그레이션 후 실행
+- **`main.py`**: 실행 진입점(CLI). config 로드/정규화 후 실행
 - **`config/`**: 실행 설정(YAML)
   - 예) `recbole_LGCN.yaml`, `recbole_RecVAE.yaml`
 - **`data/`**: 데이터(예: `data/movielens/train/train_ratings.csv`)
@@ -35,6 +40,12 @@
 
 ```bash
 py -m pip install -r requirements.txt
+```
+
+- **Linux / macOS**
+
+```bash
+python -m pip install -r requirements.txt
 ```
 
 - **RecBole 엔진을 쓰려면 추가 설치가 필요할 수 있습니다**
@@ -86,6 +97,7 @@ py main.py --config config/torch_S3Rec_pretrain.yaml
 #### Train 섹션(통일 스키마)
 
 - **SSoT**: `train.*` (레거시 승격/호환 없음)
+  - 레시피 전용 하이퍼는 **`recipe_args`** 로 분리해서 관리하는 걸 권장합니다.
 
 예시(일부):
 
@@ -126,6 +138,10 @@ py main.py --config config/torch_S3Rec_pretrain.yaml
   - 안쪽 list 길이 = topK (예: 10)
 - `Problem.save_submission()`이 `bundle.meta["submission"]["users"]` 순서에 맞춰 `(user, item)` row로 평탄화해서 저장합니다.
   - 구현: `src/problems/movies_seq_topn.py`
+- **중요(대회 템플릿 방식)**:
+  - 제출 대상 user/순서는 **`sample_submission.csv`를 SSoT로 사용**합니다(가능하면 이 파일을 그대로 채우는 방식).
+  - 기본적으로 loader가 `<dataset.data_path>/../eval/sample_submission.csv`를 자동 탐색합니다.
+  - 경로가 다르면 `dataset.sample_submission_path`로 직접 지정할 수 있습니다.
 - 저장 위치:
   - 기본 `train.submit_dir` (없으면 `saved/submit`)
   - 파일명 기본값은 **`<model>.csv`** 입니다.

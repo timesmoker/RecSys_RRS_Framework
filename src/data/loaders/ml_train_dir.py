@@ -1,5 +1,27 @@
 from __future__ import annotations
 
+"""
+MovieLens 계열 데이터 로더.
+
+입력:
+- cfg.dataset.data_path: str
+- (선택) cfg.dataset.item2attributes_file: str
+- (선택) cfg.dataset.load_aux_tables: bool
+- (선택) cfg.dataset.sample_submission_path: str
+
+출력:
+- dict[str, Any]
+  - ratings: pd.DataFrame (columns: user,item,time)
+  - item2attributes: dict|None
+  - sample_submission: pd.DataFrame|None (columns: user,item)
+  - aux_tables: dict[str, pd.DataFrame]
+  - paths: dict[str, str|None]
+
+비고:
+- 대회가 sample_submission 템플릿을 “채워서 제출”하는 형태인 경우,
+  제출 대상 user/순서는 sample_submission이 SSoT가 됩니다.
+"""
+
 from typing import Any, Dict, Optional
 import json
 import os
@@ -8,22 +30,7 @@ import pandas as pd
 
 
 def load_ml_train_dir(cfg: Any) -> Dict[str, Any]:
-    """
-    MovieLens-like sequential competition loader.
-
-    Expected files under cfg.dataset.data_path:
-      - train_ratings.csv  (user,item,time)
-      - Ml_item2attributes.json (optional but common)
-      - titles.tsv / years.tsv / genres.tsv / directors.tsv / writers.tsv (optional)
-
-    Returns:
-      {
-        "ratings": pd.DataFrame,
-        "item2attributes": dict | None,
-        "aux_paths": {...},
-        "aux_tables": {...}  # optionally loaded if cfg.dataset.load_aux_tables=True
-      }
-    """
+    """cfg.dataset.data_path 디렉토리에서 학습/제출에 필요한 파일들을 로드합니다."""
     base = cfg.dataset.data_path
     if not base.endswith(os.sep):
         base = base + os.sep
@@ -38,7 +45,7 @@ def load_ml_train_dir(cfg: Any) -> Dict[str, Any]:
     if missing:
         raise ValueError(f"train_ratings.csv missing columns: {missing}")
 
-    # optional json
+    # optional: item2attributes (S3Rec pretrain 등에 사용 가능)
     item2attr_path = os.path.join(base, cfg.dataset.get("item2attributes_file", "Ml_item2attributes.json"))
     item2attributes: Optional[dict] = None
     if os.path.exists(item2attr_path):

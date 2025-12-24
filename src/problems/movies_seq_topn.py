@@ -1,5 +1,20 @@
 from __future__ import annotations
 
+"""
+MovieLens Seq Top-K 제출용 Problem 구현.
+
+입력:
+- bundle.meta["submission"]["users"]: 제출 대상 user 순서 (sample_submission 기반)
+- preds: List[List[int]] (len(preds)==len(users), 각 row는 topK item_id)
+
+출력:
+- save_submission(): `<train.submit_dir>/<model>.csv` 형태로 저장 후 경로 반환
+- evaluate_preds(): (선택) 간단 sanity metric(dict) 반환
+
+주의:
+- 이 대회는 sample_submission 템플릿을 “채워 제출”하는 형태를 전제로 합니다.
+"""
+
 from typing import Any, Optional, List
 import pandas as pd
 
