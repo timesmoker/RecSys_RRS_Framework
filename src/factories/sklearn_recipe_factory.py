@@ -37,9 +37,6 @@ class SklearnRecipeFactory:
 
     @classmethod
     def build(cls, cfg: Any):
-        # IMPORTANT: ensure recipe modules are imported so decorators execute
-        import src.models.sklearn.recipes.registry  # noqa: F401
-
         name = cls._get_model_name(cfg)
         if name not in SKLEARN_RECIPE_REGISTRY:
             raise ValueError(

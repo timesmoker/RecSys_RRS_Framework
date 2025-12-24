@@ -38,6 +38,14 @@ class ProblemBase:
     def save_submission(self, preds, cfg: Any, setting, bundle) -> Optional[str]:
         raise NotImplementedError
 
+    def evaluate_preds(self, preds, cfg: Any, bundle: DataBundle) -> dict | None:
+        """
+        Optional evaluation hook.
+        - Called from main after `engine.predict()` and before `save_submission()`
+        - Return a flat dict of metrics to be logged (e.g., {"Recall@10": 0.123})
+        """
+        return None
+
     # --------------------------------------------------
     # Contract validation
     # --------------------------------------------------

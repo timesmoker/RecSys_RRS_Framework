@@ -61,13 +61,36 @@ def load_ml_train_dir(cfg: Any) -> Dict[str, Any]:
             if os.path.exists(p):
                 aux_tables[k] = pd.read_csv(p, sep="\t")
 
+    # optional: sample_submission for competition template (users/order/K)
+    sample_path = None
+    try:
+        sample_path = cfg.dataset.get("sample_submission_path", None)
+    except Exception:
+        sample_path = None
+
+    # default: sibling eval dir (..../train -> ..../eval/sample_submission.csv)
+    if not sample_path:
+        base_dir = os.path.abspath(os.path.join(base, os.pardir))
+        candidate = os.path.join(base_dir, "eval", "sample_submission.csv")
+        if os.path.exists(candidate):
+            sample_path = candidate
+
+    sample_submission = None
+    if sample_path and os.path.exists(sample_path):
+        try:
+            sample_submission = pd.read_csv(sample_path)
+        except Exception:
+            sample_submission = None
+
     return {
         "ratings": ratings,
         "item2attributes": item2attributes,
+        "sample_submission": sample_submission,
         "aux_paths": aux_paths,
         "aux_tables": aux_tables,
         "paths": {
             "ratings_path": ratings_path,
             "item2attributes_path": item2attr_path if os.path.exists(item2attr_path) else None,
+            "sample_submission_path": sample_path if (sample_path and os.path.exists(sample_path)) else None,
         },
     }

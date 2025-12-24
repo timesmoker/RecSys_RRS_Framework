@@ -1,78 +1,168 @@
+### --------------------------------------------------
+### CONFIG TEMPLATE (업그레이드 버전)
+### --------------------------------------------------
+### 이 파일은 "주석 많은 정답 템플릿"입니다.
+### - 실행: `py main.py --config config/config_template.yaml`
+### - 핵심 SSoT: train.* (레거시 승격/호환 없음)
+### --------------------------------------------------
+
+### --------------------
+### execution
+### --------------------
+# predict:
+# - false: train → predict → submission 생성
+# - true:  predict-only (checkpoint 필수)
 predict: false
+
+# checkpoint:
+# - predict=true일 때 사용할 체크포인트 경로
+# - train→predict 모드에서는 engine.fit() 반환 checkpoint가 사용됨
 checkpoint: ""
 
+# seed/device/verbose: 전역 런타임
 seed: 42
-device: cpu
+device: cuda          # cpu | cuda | cuda:0 등
 verbose: true
 
+# run_name: 실험 이름 (run_dir 폴더명 + wandb run name에 반영)
+run_name: "template_run"
+
+# skip_submission:
+# - true: fit까지만 수행하고 종료 (프리트레인 등 "제출 없는" 러닝에 사용)
+skip_submission: false
+
+### --------------------
+### wandb
+### --------------------
+wandb: false
+wandb_project: ""      # 예: "rrs-movielens"
+memo: |                # wandb notes
+
+### --------------------
+### routing: engine / problem / pipeline
+### --------------------
+# engine.type:
+# - torch
+# - recbole
+# - sklearn_topn / sklearn_regression (일부는 스켈레톤일 수 있음)
 engine:
   type: torch
 
+# problem.name:
+# - movies_seq_topn (MovieLens Top-K 제출용)
 problem:
-  name: books_rating
+  name: movies_seq_topn
 
-wandb: false
-wandb_project: book-rating-prediction
-run_name: ""
-
-train:
-  run_dir: saved/runs
-  submit_dir: saved/submit
-
-dataset:
-  data_path: data/
-  valid_ratio: 0.2
-
-batch_size: 256
-lr: 1e-3
-summary_dim : 256
-
+# data.pipeline:
+# - seq_topn_ml_v1 (현재 MovieLens seq_topn 파이프라인)
 data:
-  pipeline: books_rating_v2
+  pipeline: seq_topn_ml_v1
   transforms:
+    # global: raw dict 단계에서 실행 (멀티 테이블 정리/리소스 준비 등, stateless 성격)
     global: []
+    # post: prepare_data 이후 DataFrame에 실행 (train fit → train/valid/test transform, leakage 방지)
     post: []
 
-recipe: bert_jhd_regression
-model: BPR
+### --------------------
+### dataset (MovieLens 기준)
+### --------------------
+dataset:
+  # train dir (필수): train_ratings.csv (user,item,time)
+  data_path: "data/movielens/train"
 
+  # sample_submission_path (선택):
+  # - 이 대회는 sample_submission 템플릿을 채워 제출하는 형태이므로, 가능하면 이 파일을 SSoT로 사용
+  # - 지정하지 않으면 loader가 자동으로 `<data_path>/../eval/sample_submission.csv`를 탐색
+  # sample_submission_path: "data/movielens/eval/sample_submission.csv"
+
+  # 컬럼명 (기본값 user/item/time)
+  user_col: "user"
+  item_col: "item"
+  time_col: "time"
+
+  # 부가 테이블 로드 여부 (titles.tsv 등)
+  load_aux_tables: false
+
+  # (선택) S3Rec 프리트레인용 item2attributes json 파일명 커스텀
+  # item2attributes_file: "Ml_item2attributes.json"
+
+### --------------------
+### train.* (공통 SSoT)
+### --------------------
+train:
+  # run_dir: run 단위 산출물 저장 루트 (각 실행마다 하위 폴더 자동 생성)
+  run_dir: "saved/runs"
+
+  # submit_dir: 제출 파일 저장 디렉토리(Problem.save_submission이 사용)
+  submit_dir: "saved/submit"
+
+  # epochs/batch_size/lr 등은 엔진/레시피가 읽는 값 (torch/recbole 공통 키로 맞춰둠)
+  epochs: 5
+  batch_size: 256
+  lr: 0.001
+
+  # topk: 제출 추천 개수(K). sample_submission 템플릿이 있으면 그 K와 맞추는 게 안전
+  topk: 10
+
+  # optimizer 관련(선택)
+  weight_decay: 0.0
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+
+  # dataloader (선택)
+  num_workers: 0
+
+  # torch finetune에서 프리트레인 체크포인트 로드(선택)
+  # pretrained_checkpoint: "saved/runs/<pretrain_run_dir>/last.pt"
+
+  # S3Rec pretrain 전용 파라미터(선택: recipe가 s3rec_pretrain일 때 사용)
+  mask_p: 0.2
+  aap_weight: 0.2
+  mip_weight: 1.0
+  map_weight: 1.0
+  sp_weight: 0.5
+
+### --------------------------------------------------
+### Torch 엔진 사용 예시 (S3Rec)
+### --------------------------------------------------
+# recipe: torch recipe registry key
+recipe: s3rec_finetune
+
+# model: 문자열로만 사용 (표기용/태깅용)
+model: S3Rec
+
+# model_args:
+# - 반드시 model 키를 포함해야 함: model_args[model]
 model_args:
-  BPR:
-    embedding_size: 64
-    reg_weight: 1e-4
+  S3Rec:
+    hidden_size: 64
+    num_hidden_layers: 2
+    num_attention_heads: 2
+    hidden_act: "gelu"
+    attention_probs_dropout_prob: 0.2
+    hidden_dropout_prob: 0.2
+    initializer_range: 0.02
+    max_seq_length: 50
 
-  bert_jhd:
-    embed_dim: 32
-    n_heads: 4
-    n_layers: 2
-    dropout: 0.1
-    num_features: 6
-    cardinality: [1000, 500, 200, 50, 20, 10]
+### --------------------------------------------------
+### RecBole 엔진 사용 예시 (주석 블록)
+### --------------------------------------------------
+# engine:
+#   type: recbole
+# model: LightGCN
+# model_args:
+#   LightGCN:
+#     embedding_size: 64
+#     n_layers: 3
+#     reg_weight: 1e-05
+# recbole:
+#   dataset: rrs
+#   # work_dir이 비어있거나 ${setting.run_dir} 템플릿이면 런타임에 자동 해석됨
+#   work_dir: "${setting.run_dir}/recbole"
+#   overrides:
+#     use_gpu: true
+#     gpu_id: 0
 
-  CatBoost:
-    iterations: 200
-    depth: 8
-    learning_rate: 0.05
-    loss_function: RMSE
-    random_seed: 42
-    verbose: 100
-
-torch:
-  epochs: 1
-  batch_size: 64
-  lr: 1e-3
-  amp: false
-  grad_clip: 0.0
-
-recbole:
-  dataset: rrs
-  work_dir: ${setting.run_dir}/recbole   # recbole data/ckpt/log 모아두는 폴더
-  overrides: {}
-
-recbole_train:
-  seed: 42
-  epochs: 50
-  train_batch_size: 2048
-  eval_batch_size: 4096
-  learning_rate: 0.001
-  device: cuda
+### --------------------------------------------------
+### (주의) 레거시 섹션(torch / recbole_train)은 더 이상 지원하지 않습니다.
+### --------------------------------------------------

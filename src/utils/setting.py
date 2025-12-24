@@ -40,7 +40,10 @@ class Setting:
             safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in run_name)
             name = f"{name}_{safe}"
         path = os.path.join(base_dir, name)
-        return self.ensure_dir(path)
+        path = self.ensure_dir(path)
+        # engines/logger may refer to setting.run_dir as run-scoped single source of truth
+        self.run_dir = path
+        return path
 
     def get_submit_path(
             self,

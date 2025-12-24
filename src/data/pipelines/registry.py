@@ -12,7 +12,15 @@ def register_pipeline(name: str) -> Callable[[Type[DataPipelineBase]], Type[Data
         return cls
     return deco
 
-# ---- explicit registration imports (NO autodiscover) ----
-import src.data.pipelines.books_rating_v1  # noqa: F401
-import src.data.pipelines.books_rating_v2  # noqa: F401
-import src.data.pipelines.seq_topn_ml_v1   # noqa: F401
+def bootstrap_pipelines() -> list[str]:
+    """
+    Discover & import pipeline modules to trigger @register_pipeline decorators.
+    Called by `src.bootstrap.bootstrap_registries()`.
+    """
+    from src.utils.registry_utils import autodiscover
+
+    return autodiscover(
+        "src.data.pipelines",
+        exclude=("__init__", "base", "registry"),
+        recursive=False,
+    )

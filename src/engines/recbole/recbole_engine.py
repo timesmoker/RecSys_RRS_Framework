@@ -52,19 +52,19 @@ class RecBoleEngine(EngineBase):
         if not hasattr(self.cfg, "recbole"):
             raise ValueError("cfg.recbole is required for RecBoleEngine")
 
-        if not getattr(self.cfg.recbole, "work_dir", None):
-            raise ValueError("cfg.recbole.work_dir is required (must be resolved in config/main)")
+        # work_dir can be inferred from Setting.run_dir (default: <run_dir>/recbole)
+        # so we don't hard-require it here.
 
         if not getattr(self.cfg.recbole, "dataset", None):
             raise ValueError("cfg.recbole.dataset is required")
 
-        # 필수: 학습 하이퍼
-        if not hasattr(self.cfg, "recbole_train"):
-            raise ValueError("cfg.recbole_train is required")
-        tcfg = self.cfg.recbole_train
+        # 필수: 학습 하이퍼 (strict: cfg.train only)
+        tcfg = getattr(self.cfg, "train", None)
+        if tcfg is None:
+            raise ValueError("cfg.train is required (train.* is the single source of truth)")
         for k in ["epochs", "train_batch_size", "eval_batch_size", "learning_rate"]:
             if not hasattr(tcfg, k):
-                raise ValueError(f"cfg.recbole_train.{k} is required")
+                raise ValueError(f"Missing train hyperparam: {k} (expected under cfg.train.*)")
 
         # model_args는 prune 전/후 모두 올 수 있으니 여기서는 존재만 강제
         if not hasattr(self.cfg, "model_args"):
@@ -78,7 +78,11 @@ class RecBoleEngine(EngineBase):
         cfg 기반으로 경로만 계산.
         (Context 없음 — 로컬 dict로만 관리)
         """
-        work_dir = str(self.cfg.recbole.work_dir)
+        work_dir = getattr(self.cfg.recbole, "work_dir", None)
+        if not work_dir:
+            base = getattr(self.setting, "run_dir", None) or "."
+            work_dir = os.path.join(str(base), "recbole")
+        work_dir = str(work_dir)
         data_root = os.path.join(work_dir, "data")
         dataset = str(self.cfg.recbole.dataset)
         dataset_dir = os.path.join(data_root, dataset)
@@ -120,8 +124,7 @@ class RecBoleEngine(EngineBase):
         # logger.log_dir 아래에 저장
         overrides_path = os.path.join(self.logger.log_dir, "recbole_overrides.json")
         with open(overrides_path, "w", encoding="utf-8") as f:
-            with open(overrides_path, "w", encoding="utf-8") as f:
-                json.dump(to_jsonable(overrides), f, ensure_ascii=False, indent=2)
+            json.dump(to_jsonable(overrides), f, ensure_ascii=False, indent=2)
         self.logger.log_artifact(overrides_path, name="recbole_overrides")
 
         # 4) run recbole
@@ -212,7 +215,8 @@ class RecBoleEngine(EngineBase):
         # 5) topK 결정 (cfg 우선, 없으면 10)
         k = 10
         try:
-            k = int(getattr(self.cfg.recbole_train, "topk", 10))
+            tcfg = getattr(self.cfg, "train", None)
+            k = int(getattr(tcfg, "topk", 10))
         except Exception:
             pass
         try:

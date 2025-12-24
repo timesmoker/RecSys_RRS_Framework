@@ -8,9 +8,9 @@ import torch
 
 class TorchRecipeBase(ABC):
     """
-    Strict config contract:
+    Config contract (strict):
 
-    - train hyperparams live under cfg.torch.*
+    - train hyperparams live under cfg.train.*
       (batch_size, lr, epochs, amp, grad_clip, ...)
 
     - model hyperparams live under cfg.model_args[cfg.model].*
@@ -22,8 +22,8 @@ class TorchRecipeBase(ABC):
         self._validate_cfg_contract()
 
     def _validate_cfg_contract(self) -> None:
-        if not hasattr(self.cfg, "torch"):
-            raise KeyError("Missing cfg.torch (train hyperparams must be under cfg.torch.*)")
+        if not hasattr(self.cfg, "train"):
+            raise KeyError("Missing cfg.train (train.* is required)")
         if not hasattr(self.cfg, "model"):
             raise KeyError("Missing cfg.model")
         if not hasattr(self.cfg, "model_args"):
@@ -32,8 +32,7 @@ class TorchRecipeBase(ABC):
             raise KeyError(f"Missing cfg.model_args['{self.cfg.model}']")
 
     def train_cfg(self):
-        # cfg.torch.* only
-        return self.cfg.torch
+        return self.cfg.train
 
     def model_cfg(self):
         # cfg.model_args[cfg.model].* only

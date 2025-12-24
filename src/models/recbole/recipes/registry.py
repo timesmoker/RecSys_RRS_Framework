@@ -25,7 +25,15 @@ def build_recbole_recipe(cfg: Any) -> RecBoleRecipeBase:
         raise KeyError(f"Unknown recbole recipe: {model}. Available={sorted(_REG.keys())}")
     return _REG[model](cfg)
 
+def bootstrap_recbole_recipes() -> list[str]:
+    """
+    Discover & import recbole recipe modules to trigger @register_recbole_recipe decorators.
+    Called by `src.bootstrap.bootstrap_registries()`.
+    """
+    from src.utils.registry_utils import autodiscover
 
-# explicit registration imports (no autodiscovery)
-import src.models.recbole.recipes.lightgcn  # noqa: F401
-import src.models.recbole.recipes.recvae  # noqa: F401
+    return autodiscover(
+        "src.models.recbole.recipes",
+        exclude=("__init__", "registry", "base"),
+        recursive=False,
+    )

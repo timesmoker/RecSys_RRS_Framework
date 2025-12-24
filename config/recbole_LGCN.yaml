@@ -1,12 +1,12 @@
 # --------------------
 # execution
 # --------------------
-predict: false
-checkpoint: ""
+predict: true
+checkpoint: "saved/LightGCN-Dec-23-2025_05-17-08.pth"
 seed: 42
 device: cuda
 verbose: true
-run_name: "recbole_RecVAE_seqtopn"
+run_name: "recbole_lgcn_seqtopn"
 
 wandb: true
 wandb_project:
@@ -20,8 +20,8 @@ train:
   submit_dir: "saved/submit"
   # train.* is the single source of truth (no recbole_train)
   seed: 42
-  epochs: 120
-  train_batch_size: 2048
+  epochs: 5
+  train_batch_size: 4096
   eval_batch_size: 4096
   learning_rate: 0.001
   topk: 10
@@ -46,12 +46,12 @@ engine:
 # --------------------
 # model
 # --------------------
-model: RecVAE
+model: LightGCN
 
 # RecBole 공통
 recbole:
   dataset: rrs
-  work_dir: "saved/recbole_runs/recbole_RecVAE_seqtopn"  # <- 실행별로 폴더 구분 권장
+  work_dir: "saved/recbole_runs/recbole_lgcn_seqtopn"  # <- 실행별로 폴더 구분 권장
   overrides:
     use_gpu: true
     gpu_id: 0
@@ -66,9 +66,3 @@ model_args:
     embedding_size: 64
     n_layers: 3
     reg_weight: 1e-05
-  RecVAE:
-    hidden_dimension: 800
-    latent_dimension: 300
-    dropout_prob: 0.05
-    beta: 0.3
-    gamma: 0.01

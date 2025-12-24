@@ -52,3 +52,47 @@ class MoviesSeqTopNProblem(ProblemBase):
         )
         sub_df.to_csv(out_path, index=False)
         return out_path
+
+    def evaluate_preds(self, preds: List[List[int]], cfg: Any, bundle: DataBundle) -> dict | None:
+        """
+        Competition-friendly metric for this problem:
+        - Recall@K computed as hit-rate of the held-out last item per user.
+
+        NOTE:
+        - We don't have public labels for eval in the competition setting.
+        - This provides a lightweight, always-available sanity metric using train history.
+        """
+        meta = bundle.meta or {}
+        sub = meta.get("submission", {}) or {}
+        users = sub.get("users") or []
+        user_seq = meta.get("user_seq") or {}
+
+        if not users or not user_seq:
+            return None
+
+        # K: prefer cfg.train.topk, fallback 10
+        k = 10
+        try:
+            k = int(cfg.get("train", {}).get("topk", 10))
+        except Exception:
+            pass
+
+        hits = 0
+        total = 0
+        for u, recs in zip(users, preds):
+            seq = user_seq.get(u)
+            if not seq:
+                continue
+            gt = seq[-1]
+            try:
+                gt = int(gt)
+            except Exception:
+                gt = gt
+            total += 1
+            if gt in recs[:k]:
+                hits += 1
+
+        if total == 0:
+            return None
+
+        return {f"Recall@{k}": hits / total}

@@ -34,8 +34,16 @@ class TorchBaseEngine(EngineBase):
             device_str if device_str.startswith("cuda") and torch.cuda.is_available() else "cpu"
         )
 
-        self.use_amp = bool(getattr(cfg, "amp", False))
-        self.grad_clip = float(getattr(cfg, "grad_clip", 0.0) or 0.0)
+        # train cfg (strict: cfg.train only)
+        tc = getattr(cfg, "train")
+        try:
+            self.use_amp = bool(getattr(tc, "amp"))
+        except Exception:
+            self.use_amp = bool(getattr(cfg, "amp", False))
+        try:
+            self.grad_clip = float(getattr(tc, "grad_clip") or 0.0)
+        except Exception:
+            self.grad_clip = 0.0
 
         self.recipe = build_torch_recipe(cfg)
 
@@ -45,18 +53,21 @@ class TorchBaseEngine(EngineBase):
 
     # ---------------- public API ----------------
     def fit(self, bundle):
-        print("BUNDLE_META_KEYS=", sorted(bundle.meta.keys()))
-
         if bool(getattr(self.cfg, "predict", False)):
             return
 
         loaders = self.recipe.build_loaders(self.cfg, bundle)
         self._init_train_components(bundle)
 
-        epochs = int(getattr(self.cfg, "epochs", 1))
+        tc = self.recipe.train_cfg()
+        try:
+            epochs = int(getattr(tc, "epochs"))
+        except Exception:
+            epochs = int(getattr(self.cfg, "epochs", 1))
 
         for epoch in range(epochs):
             self.model.train()
+            losses: List[float] = []
             for batch in loaders["train"]:
                 batch = self.recipe.move_batch_to_device(batch, self.device)
 
@@ -65,6 +76,10 @@ class TorchBaseEngine(EngineBase):
                 with torch.cuda.amp.autocast(enabled=self.use_amp):
                     out = self.recipe.train_step(self.cfg, batch, self.model)
                     loss = out["loss"]
+                    try:
+                        losses.append(float(loss.detach().cpu().item()))
+                    except Exception:
+                        pass
 
                 self.scaler.scale(loss).backward()
 
@@ -75,10 +90,32 @@ class TorchBaseEngine(EngineBase):
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
 
+            # epoch logging
+            if self.logger:
+                lr = None
+                try:
+                    lr = float(self.optimizer.param_groups[0].get("lr"))  # type: ignore[union-attr]
+                except Exception:
+                    lr = None
+                metrics = {}
+                if losses:
+                    metrics["loss"] = float(sum(losses) / max(len(losses), 1))
+                if lr is not None:
+                    metrics["lr"] = lr
+                metrics["epoch"] = epoch
+                self.logger.log_train_metrics(metrics, step=epoch)
+
             self._save_checkpoint(epoch)
+
+        # main.py contract: fit() returns dict with checkpoint_path
+        return {"checkpoint_path": f"{self.setting.run_dir}/last.pt"}
 
     def predict(self, bundle, checkpoint: str | None = None):
         loaders = self.recipe.build_loaders(self.cfg, bundle)
+        if self.logger:
+            self.logger.log_predict_info(
+                {"engine": "torch", "model": str(getattr(self.cfg, "model", "")), "stage": "start", "checkpoint": checkpoint or ""},
+            )
         self._load_checkpoint(checkpoint)
 
         self.model.eval()
@@ -92,6 +129,14 @@ class TorchBaseEngine(EngineBase):
 
         preds = self._merge_preds(preds_chunks)
         PredsValidator.validate(preds, bundle)
+        if self.logger:
+            try:
+                n = len(preds)
+            except Exception:
+                n = None
+            self.logger.log_predict_info(
+                {"engine": "torch", "model": str(getattr(self.cfg, "model", "")), "stage": "done", "preds": n},
+            )
         return preds
 
     # ---------------- internal ----------------
@@ -103,6 +148,8 @@ class TorchBaseEngine(EngineBase):
         path = f"{self.setting.run_dir}/last.pt"
         self.setting.ensure_dir(self.setting.run_dir)
         torch.save({"model": self.model.state_dict()}, path)
+        if self.logger:
+            self.logger.log_artifact(path, name="torch_last_checkpoint")
 
     def _load_checkpoint(self, path: str | None):
         if not path:

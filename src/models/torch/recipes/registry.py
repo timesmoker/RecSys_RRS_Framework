@@ -35,6 +35,15 @@ def build_torch_recipe(cfg) -> TorchRecipeBase:
 
     return _REGISTRY[name](cfg)
 
+def bootstrap_torch_recipes() -> list[str]:
+    """
+    Discover & import torch recipe modules to trigger @register_torch_recipe decorators.
+    Called by `src.bootstrap.bootstrap_registries()`.
+    """
+    from src.utils.registry_utils import autodiscover
 
-# ---- explicit registration imports (NO autodiscover) ----
-import src.models.torch.recipes.bert_jhd  # noqa: F401
+    return autodiscover(
+        "src.models.torch.recipes",
+        exclude=("__init__", "registry", "torch_recipe_base"),
+        recursive=False,
+    )

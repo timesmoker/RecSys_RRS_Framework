@@ -7,6 +7,7 @@ import joblib
 
 from src.engines.core.engine_base import EngineBase
 from src.engines.core.common import PredsValidator
+from src.utils.cfg_utils import cfg_select
 
 
 class SklearnEngineBase(EngineBase, ABC):
@@ -24,9 +25,9 @@ class SklearnEngineBase(EngineBase, ABC):
         Single source of truth for run directory.
         Uses Setting.get_run_dir() policy.
         """
-        # cfg shape based on your sample:
+        # cfg shape (preferred):
         # cfg.train.run_dir, cfg.engine.type, cfg.model, cfg.run_name
-        base_dir = self.cfg.train.run_dir
+        base_dir = cfg_select(self.cfg, "train.run_dir", default="saved/runs")
 
         model = getattr(self.cfg, "model", None)
         model_name = str(model)
@@ -77,7 +78,8 @@ class SklearnEngineBase(EngineBase, ABC):
         payload.setdefault("engine", "sklearn")
         payload.setdefault("mode", "train")
         if self.logger:
-            self.logger.log_predict_info(payload)
+            # keep API simple: treat as train metrics at step=0 unless caller provides step elsewhere
+            self.logger.log_train_metrics(payload, step=0)
 
     def _log_predict(self, payload: Dict[str, Any]) -> None:
         payload = dict(payload)

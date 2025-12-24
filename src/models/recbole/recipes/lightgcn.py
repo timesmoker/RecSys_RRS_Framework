@@ -27,8 +27,8 @@ class LightGCNRecipe(RecBoleRecipeBase):
     def build_overrides(self, bundle, *, data_root: str, dataset: str) -> Dict[str, Any]:
         fm = build_fieldmap(bundle.schema or {})
 
-        # 학습 하이퍼
-        tcfg = self.cfg.recbole_train
+        # 학습 하이퍼 (strict: cfg.train only)
+        tcfg = self.cfg.train
 
         # model_args prune 전/후 모두 견딤
         mcfg = getattr(self.cfg, "model_args", {}) or {}

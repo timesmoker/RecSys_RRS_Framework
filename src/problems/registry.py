@@ -33,3 +33,17 @@ def register_problem(
 
         return cls
     return deco
+
+
+def bootstrap_problems() -> list[str]:
+    """
+    Discover & import problem modules to trigger @register_problem decorators.
+    Called by `src.bootstrap.bootstrap_registries()`.
+    """
+    from src.utils.registry_utils import autodiscover
+
+    return autodiscover(
+        "src.problems",
+        exclude=("__init__", "base", "registry"),
+        recursive=False,
+    )

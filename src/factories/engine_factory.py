@@ -8,7 +8,8 @@ from src.engines.registry import ENGINE_REGISTRY
 class EngineFactory:
     @classmethod
     def build(cls, cfg: Any, logger, setting) -> EngineBase:
-        import src.engines  # noqa: F401  (trigger registrations)
+        # Registrations are triggered by `src.bootstrap.bootstrap_registries()`
+        # (avoid relying on __init__ side-effects).
 
         engine_type = getattr(cfg, "engine", None)
         if engine_type is None:

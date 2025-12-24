@@ -14,6 +14,15 @@ def register_sklearn_recipe(name: str):
     return deco
 
 
-# -------- import triggers --------
-from src.models.sklearn.recipes import catboost_recipe  # noqa
-from src.models.sklearn.recipes import lgbm_recipe     # noqa
+def bootstrap_sklearn_recipes() -> list[str]:
+    """
+    Discover & import sklearn recipe modules to trigger @register_sklearn_recipe decorators.
+    Called by `src.bootstrap.bootstrap_registries()`.
+    """
+    from src.utils.registry_utils import autodiscover
+
+    return autodiscover(
+        "src.models.sklearn.recipes",
+        exclude=("__init__", "registry", "base"),
+        recursive=False,
+    )

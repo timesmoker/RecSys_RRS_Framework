@@ -36,12 +36,44 @@ class SeqTopNMLV1Pipeline(DataPipelineBase):
         item_col = str(cfg.dataset.get("item_col", "item"))
         time_col = str(cfg.dataset.get("time_col", "time"))
 
-        # submission users order: train에서 등장한 user unique 순서 고정
-        users: List[int] = ratings[user_col].drop_duplicates().tolist()
+        # train users (for building sequences / long_sequence)
+        train_users: List[int] = ratings[user_col].drop_duplicates().tolist()
 
         # user_seq: user -> list[item] (time 정렬)
         ratings_sorted = ratings.sort_values([user_col, time_col], ascending=True)
         user_seq = ratings_sorted.groupby(user_col)[item_col].apply(list).to_dict()
+        # long sequence (for pretraining negative segment sampling)
+        long_sequence: List[int] = []
+        for u in train_users:
+            long_sequence.extend(user_seq.get(u, []) or [])
+
+        # submission users order: prefer sample_submission template if available
+        users: List[int] = train_users
+        k_from_sample = None
+        ss = raw.get("sample_submission", None)
+        if isinstance(ss, pd.DataFrame) and (user_col in ss.columns):
+            users = ss[user_col].drop_duplicates().tolist()
+            try:
+                vc = ss[user_col].value_counts()
+                if len(vc) > 0:
+                    k_from_sample = int(vc.iloc[0])
+            except Exception:
+                k_from_sample = None
+
+        # optional item2attributes (for S3Rec pretraining tasks)
+        item2attributes = raw.get("item2attributes", None)
+        attribute_size = None
+        if isinstance(item2attributes, dict) and item2attributes:
+            try:
+                mx = 0
+                for _, attrs in item2attributes.items():
+                    if not attrs:
+                        continue
+                    mx = max(mx, max(int(a) for a in attrs))
+                # +1 for 0 padding
+                attribute_size = int(mx) + 1
+            except Exception:
+                attribute_size = None
 
         tr = ratings.reset_index(drop=True)
         va = None
@@ -52,10 +84,12 @@ class SeqTopNMLV1Pipeline(DataPipelineBase):
 
         meta = {
             "pipeline": self.name,
-            "submission": {"users": users},
+            "submission": {"users": users, "k": k_from_sample},
             "user_seq": user_seq,
-            # raw에 포함된 부가 리소스가 필요하면 meta로 넘겨도 됨(선택)
-            # "item2attributes": raw.get("item2attributes", None),
+            "long_sequence": long_sequence,
+            # optional: for pretraining
+            "item2attributes": item2attributes,
+            "attribute_size": attribute_size,
         }
         return tr, va, te, meta
 

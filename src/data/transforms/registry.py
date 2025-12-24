@@ -25,3 +25,18 @@ def register_post(name: str) -> Callable[[Type[PostTransform]], Type[PostTransfo
         POST_TRANSFORM_REGISTRY[name] = cls
         return cls
     return deco
+
+
+def bootstrap_transforms() -> list[str]:
+    """
+    Discover & import transform modules to trigger decorator-based registrations.
+    Called by `src.bootstrap.bootstrap_registries()`.
+    """
+    from src.utils.registry_utils import autodiscover
+
+    return autodiscover(
+        "src.data.transforms",
+        exclude=("__init__", "base", "registry"),
+        recursive=True,
+        include_packages=False,
+    )

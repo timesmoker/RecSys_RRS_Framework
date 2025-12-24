@@ -47,7 +47,7 @@ def infer_runtime_config(cfg):
 
     # engine.type 필수
     if "engine" not in cfg or "type" not in cfg.engine:
-        raise ValueError("engine.type must be specified in config (sklearn|torch|recbole)")
+        raise ValueError("engine.type must be specified in config")
 
     # model/model_args 정합성
     if "model" not in cfg or not cfg.model:
@@ -63,6 +63,10 @@ def infer_runtime_config(cfg):
     # Pipeline은 data.pipeline SSoT
     if "data" not in cfg or not cfg.data.get("pipeline"):
         raise ValueError("cfg.data.pipeline is required")
+
+    # Train section is mandatory (no legacy upgrade)
+    if "train" not in cfg or cfg.train is None:
+        raise ValueError("cfg.train is required (train.* is the single source of truth)")
 
     return cfg
 
@@ -87,7 +91,8 @@ def normalize_config(cfg):
 
     # predict 모드면 학습 관련 제거 (로깅/경로는 유지)
     if cfg.get("predict", False):
-        for k in ["optimizer", "lr_scheduler", "metrics", "loss", "train"]:
+        # NOTE: cfg.train is kept for predict (topk/paths/engine-specific needs)
+        for k in ["optimizer", "lr_scheduler", "metrics", "loss"]:
             cfg.pop(k, None)
 
     # engine별 의미없는 섹션 제거
@@ -150,6 +155,16 @@ def main(cfg):
         run_name=cfg.get("run_name"),
     )
 
+    # runtime path resolution (cfg cannot reference Setting directly)
+    try:
+        if "recbole" in cfg:
+            wd = cfg.recbole.get("work_dir", None)
+            if not wd or (isinstance(wd, str) and "${setting.run_dir}" in wd):
+                wd = (wd or "${setting.run_dir}/recbole").replace("${setting.run_dir}", run_dir)
+                cfg.recbole["work_dir"] = wd
+    except Exception:
+        pass
+
     logger = Logger(cfg, run_dir)
     logger.save_args()
 
@@ -166,10 +181,24 @@ def main(cfg):
     if not cfg.predict:
         tr = engine.fit(data_bundle)
 
+    # pretrain-only / train-only mode (no predict, no submission)
+    if bool(cfg.get("skip_submission", False)):
+        logger.log_predict_info({"run_mode": "skip_submission", "stage": "done"})
+        return
+
     preds = engine.predict(
         data_bundle,
         checkpoint=cfg.checkpoint if cfg.predict else tr["checkpoint_path"]
     )
+
+    # 5) optional evaluation (for wandb logging / sanity check)
+    try:
+        metrics = problem.evaluate_preds(preds, cfg, data_bundle)
+        if metrics:
+            logger.log_valid_metrics(metrics, step=0)
+    except Exception as e:
+        # evaluation shouldn't break submission run
+        logger.log_predict_info({"stage": "eval_failed", "error": str(e)})
 
     # 6) save submission (Problem이 정책 결정, 경로 return)
     output_path = problem.save_submission(preds, cfg, setting, data_bundle)
